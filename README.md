@@ -6,11 +6,14 @@
 
 **Hordicus v23.8.51 — Public Playtest 1**
 
-[Hordicus Releases](https://github.com/Sponsor-Sorter/Hordicus/releases)
+- [Release page](https://github.com/Sponsor-Sorter/Hordicus/releases/tag/v23.8.51)
+- [Direct Windows x64 download](https://github.com/Sponsor-Sorter/Hordicus/releases/download/v23.8.51/Hordicus_v23_8_51_Public_Playtest_1_Windows_x64.zip)
+- [Public Playtest 1 notes](docs/PUBLIC_PLAYTEST_1.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ### Install
 
-1. Download `Hordicus_v23_8_51_Public_Playtest_1_Windows_x64.zip` from the v23.8.51 release page.
+1. Download `Hordicus_v23_8_51_Public_Playtest_1_Windows_x64.zip`.
 2. Extract the **entire ZIP** to its own folder.
 3. Do not run the game from inside the ZIP.
 4. Run `Hordicus.exe`.
@@ -31,7 +34,13 @@ Public ZIP SHA-256:
 b760afe5428fa53c6d2e521503fa0224a7bc5143b786fe960c4697ee9cb4666d
 ```
 
+GitHub reports the uploaded release asset with the same SHA-256 digest.
+
 If Windows security software flags a download, verify that the filename and SHA-256 match the official release before taking any action.
+
+## Known issue
+
+- Some watch towers currently have no collision box.
 
 ## Public-build contents
 
@@ -48,20 +57,9 @@ It intentionally does **not** contain:
 
 ## Feedback
 
-Hordicus is in active development. Please use the official Hordicus Discord community for:
-
-- bug reports
-- technical support
-- feature requests
-- balance feedback
-- multiplayer/LFG
-- development updates
+Hordicus is in active development. Please use the official Hordicus Discord community for bug reports, technical support, feature requests, balance feedback, multiplayer/LFG, and development updates.
 
 When reporting a bug, include your Hordicus version, Windows version, reproduction steps, expected result, actual result, and screenshots/video when useful.
-
-## Public playtest notes
-
-See [Public Playtest 1 notes](docs/PUBLIC_PLAYTEST_1.md) for release details and areas we want players to test.
 
 ## Platform
 
