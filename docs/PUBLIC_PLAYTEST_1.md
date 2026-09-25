@@ -10,6 +10,7 @@ This is the first public Hordicus playtest package.
 - current HUD and Run Over polish
 - persistent profile/settings support
 - public-playtest packaging and developer-feature hardening
+   Known bug with watch towers with no collision box
 
 ## Public package cleanup
 
