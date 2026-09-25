@@ -6,7 +6,7 @@
 
 **Hordicus v23.8.51 — Public Playtest 1**
 
-[Open the Hordicus v23.8.51 release page](https://github.com/Sponsor-Sorter/Hordicus/releases/tag/v23.8.51)
+[Hordicus Releases](https://github.com/Sponsor-Sorter/Hordicus/releases)
 
 ### Install
 
