@@ -2,15 +2,23 @@
 
 This is the first public Hordicus playtest package.
 
+## Download
+
+- [Release page](https://github.com/Sponsor-Sorter/Hordicus/releases/tag/v23.8.51)
+- [Direct Windows x64 download](https://github.com/Sponsor-Sorter/Hordicus/releases/download/v23.8.51/Hordicus_v23_8_51_Public_Playtest_1_Windows_x64.zip)
+
 ## What this build contains
 
 - Current Shattered March authored map and gameplay content
 - Current weapon, enemy, boss, progression and UI systems
 - Inventory and Shop
-- current HUD and Run Over polish
-- persistent profile/settings support
-- public-playtest packaging and developer-feature hardening
-   Known bug with watch towers with no collision box
+- Current HUD and Run Over polish
+- Persistent profile/settings support
+- Public-playtest packaging and developer-feature hardening
+
+## Known issue
+
+- Some watch towers currently have no collision box.
 
 ## Public package cleanup
 
@@ -75,3 +83,5 @@ Executable:
 Hordicus.exe
 SHA-256: b760afe5428fa53c6d2e521503fa0224a7bc5143b786fe960c4697ee9cb4666d
 ```
+
+The GitHub release asset digest matches the expected public ZIP SHA-256.
