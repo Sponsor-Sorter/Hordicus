@@ -6,11 +6,11 @@
 
 **Hordicus v23.8.51 — Public Playtest 1**
 
-[Download the latest Hordicus release](https://github.com/Sponsor-Sorter/Hordicus/releases/latest)
+[Open the Hordicus v23.8.51 release page](https://github.com/Sponsor-Sorter/Hordicus/releases/tag/v23.8.51)
 
 ### Install
 
-1. Download `Hordicus_v23_8_51_Public_Playtest_1_Windows_x64.zip` from the Releases page.
+1. Download `Hordicus_v23_8_51_Public_Playtest_1_Windows_x64.zip` from the v23.8.51 release page.
 2. Extract the **entire ZIP** to its own folder.
 3. Do not run the game from inside the ZIP.
 4. Run `Hordicus.exe`.
