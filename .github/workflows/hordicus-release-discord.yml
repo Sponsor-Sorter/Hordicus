@@ -14,6 +14,14 @@ on:
         required: true
         default: false
         type: boolean
+      test_authorization:
+        description: 'Use replacement only after deleting the original authorized test'
+        required: true
+        default: original
+        type: choice
+        options:
+          - original
+          - replace-deleted-38140167855
 permissions:
   contents: read
   actions: read
@@ -97,11 +105,14 @@ jobs:
                   if asset.get('id')!=629325434 or asset.get('size')!=432167063 or asset.get('digest')!='sha256:c75aa5aab5bb6ce40e28d2d2d1648660c112815c8b0b9cb65da6343872e8ee5a': raise SafeError('Pinned test asset changed; stop.')
               history=get('https://api.github.com/repos/'+REPO+'/actions/workflows/hordicus-release-discord.yml/runs?per_page=100',github=True)
               if not isinstance(history,dict) or history.get('total_count',101)>=100 or not isinstance(history.get('workflow_runs'),list): raise SafeError('Cannot establish bounded run history; stop.')
+              replacement=manual and event.get('inputs',{}).get('test_authorization')=='replace-deleted-38140167855'
+              if replacement and not any(r.get('id')==38140167855 and r.get('event')=='workflow_dispatch' and r.get('conclusion')=='success' for r in history['workflow_runs']): raise SafeError('Known original successful test missing; stop.')
               current=env.get('GITHUB_RUN_ID','')
               if not current.isdigit(): raise SafeError('Current run identity missing; stop.')
               for previous in history['workflow_runs']:
                   if type(previous.get('id')) is not int: raise SafeError('Invalid run history; stop.')
                   if previous['id']>=int(current): continue
+                  if replacement and previous['id']==38140167855: continue
                   if (manual and previous.get('event')=='workflow_dispatch') or (previous.get('event')=='release' and previous.get('head_branch')==release['tag_name']):
                       return 'Skipped: prior attempt exists; inspect General manually, no automatic retry.'
               webhook=env.get('DISCORD_RELEASE_WEBHOOK','')
