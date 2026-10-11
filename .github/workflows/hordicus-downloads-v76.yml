@@ -84,10 +84,11 @@ jobs:
            if meta.get('type')!=1 or meta.get('guild_id')!=GUILD or meta.get('channel_id')!=CHANNEL:raise SafeError('Webhook is not in exact Hordicus Downloads channel.')
            release_url='https://github.com/'+REPO+'/releases/tag/v1.2.76'
            asset_url='https://github.com/'+REPO+'/releases/download/v1.2.76/'+asset['name']
-           content='Hordicus v1.2.76 — Windows public playtest\nDownload: '+asset_url+'\nRelease notes and published checksums: '+release_url+'\nZIP size: '+str(asset['size'])+' bytes\nSHA-256: '+sha
+           content='Hordicus v1.2.76 Public Playtest — Windows x64\nDownload: '+asset_url+'\nRelease: '+release_url+'\nChecksums: https://github.com/'+REPO+'/releases/download/v1.2.76/SHA256SUMS.txt\nZIP: '+str(asset['size'])+' bytes; 461 runtime files\nSHA-256: '+sha+'\n\nChanges: painted 8-direction Gothic Gunslinger, Plague Doctor and Hooded Ranger animation across three guns; independent aim, recoil, reload/hurt, dash and directional deaths. Approved Hunter artwork/leg geometry preserved; enemies unchanged.\n\nInstall: extract the entire ZIP into its own folder, then run Hordicus.exe. Keep assets/maps beside the executable; do not run inside the ZIP. A working graphics driver is required; no separate runtime installer.\n\nKnown limits: render spikes remain; steady FPS is unverified; character identity and turn/join visual acceptance remain pending.\n\nBug reports: include v1.2.76, Windows version, GPU, reproduction steps, expected vs actual behavior and screenshots. If antivirus warns, pause and report it; do not bypass the warning.'
+           if len(content)>2000:raise SafeError('Approved payload exceeds Discord limit; stop.')
            result=get(webhook+'?wait=true',method='POST',body={'username':'Hordicus Announcer','content':content,'allowed_mentions':{'parse':[]}})
            if result.get('channel_id')!=CHANNEL or not isinstance(result.get('id'),str) or not re.fullmatch(r'\d+',result['id']):raise SafeError('POST response uncertain; inspect Downloads, no retry.')
-           return 'Confirmed Downloads message: https://discord.com/channels/'+GUILD+'/'+CHANNEL+'/'+result['id']
+           return 'Confirmed Downloads receipt: '+json.dumps({'message_id':result['id'],'channel_id':CHANNEL,'message_url':'https://discord.com/channels/'+GUILD+'/'+CHANNEL+'/'+result['id'],'mention_everyone':result.get('mention_everyone') is True})
           
           def main():
            try:
@@ -97,4 +98,3 @@ jobs:
            except Exception:print('Invalid metadata/configuration; no raw details displayed.');return 1
           if __name__=='__main__':sys.exit(main())
           PY
-
