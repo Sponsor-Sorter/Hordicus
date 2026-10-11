@@ -1,0 +1,124 @@
+name: Hordicus ready release announcement
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: 'Pinned published v1.2.66 release ID'
+        required: true
+        default: '409285381'
+        type: string
+      confirm_one_ping:
+        description: 'Send the single authorized @everyone test to General'
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: hordicus-discord-release-${{ github.event.release.id || '409285381' }}
+  cancel-in-progress: false
+jobs:
+  announce:
+    if: github.repository == 'Sponsor-Sorter/Hordicus' && github.run_attempt == 1 && (github.event_name == 'workflow_dispatch' || (!github.event.release.draft && vars.HORDICUS_DISCORD_RELEASES_ENABLED == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify ready release and announce once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          ENABLED: ${{ vars.HORDICUS_DISCORD_RELEASES_ENABLED }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          """Trusted inline workflow source. No repository code checkout or execution."""
+          import json, os, re, sys, urllib.request, urllib.error
+          REPO = 'Sponsor-Sorter/Hordicus'
+          GUILD = '1552823658060324974'
+          GENERAL = '1552836762575835177'
+          DOWNLOADS = '1552836731919798414'
+          class SafeError(Exception): pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs): return None
+          
+          def request(url, method='GET', body=None, github=False):
+              headers = {'Content-Type':'application/json', 'User-Agent':'DiscordBot (https://github.com/Sponsor-Sorter/Hordicus, 1.0)'}
+              if github:
+                  headers.update({'Accept':'application/vnd.github+json', 'X-GitHub-Api-Version':'2026-03-10', 'Authorization':'Bearer '+os.environ['GH_TOKEN']})
+              try:
+                  req=urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(), headers=headers, method=method)
+                  with urllib.request.build_opener(NoRedirect).open(req, timeout=20) as response:
+                      data=response.read(1024*1024+1)
+                      if len(data)>1024*1024: raise SafeError('Response too large; stop. No retry.')
+                      return json.loads(data)
+              except urllib.error.HTTPError as e:
+                  raise SafeError(('Webhook POST' if method=='POST' else 'Metadata GET')+' HTTP '+str(e.code)+'; stop. No retry.') from None
+              except SafeError: raise
+              except Exception:
+                  raise SafeError(('Webhook POST outcome uncertain; inspect General manually. Do not retry.' if method=='POST' else 'Metadata GET or JSON parse failed; stop. No retry.')) from None
+          
+          def ready(release, assets, manual=False):
+              if not isinstance(release,dict) or release.get('draft') is not False: return None
+              tag=release.get('tag_name','')
+              if not isinstance(tag,str) or not re.fullmatch(r'v?\d{1,4}\.\d{1,4}\.\d{1,4}',tag): return None
+              version=tag.removeprefix('v')
+              if not manual and tuple(map(int,version.split('.'))) <= (1,2,66): return None
+              if not isinstance(assets,list): raise SafeError('Invalid asset metadata; stop.')
+              names={'Hordicus-'+version+'-Windows.zip','Hordicus_v'+version.replace('.','_')+'_Public_Playtest_Windows_x64.zip'}
+              matches=[a for a in assets if isinstance(a,dict) and a.get('name') in names and a.get('state')=='uploaded' and type(a.get('size')) is int and a['size']>0]
+              if len(matches)!=1: return None
+              return version
+          
+          def run(event, env, get=request):
+              manual=env.get('GITHUB_EVENT_NAME')=='workflow_dispatch'
+              if env.get('GITHUB_RUN_ATTEMPT')!='1' or env.get('GITHUB_REPOSITORY')!=REPO: return 'Skipped: rerun or wrong repository.'
+              if manual:
+                  if env.get('GITHUB_REF')!='refs/heads/main' or event.get('inputs',{}).get('confirm_one_ping')!='true' or str(event.get('inputs',{}).get('release_id'))!='409285381': return 'Skipped: explicit one-ping confirmation for pinned release missing.'
+                  rid=409285381
+                  initial={'tag_name':'v1.2.66'}
+              else:
+                  if env.get('ENABLED')!='true': return 'Skipped: future announcements disabled.'
+                  if event.get('action')!='published' or event.get('repository',{}).get('full_name')!=REPO or event.get('repository',{}).get('private') is not False: return 'Skipped: not a public published release.'
+                  initial=event.get('release',{})
+                  rid=initial.get('id')
+                  if type(rid) is not int or rid<=0 or initial.get('draft') is not False: return 'Skipped: invalid or draft release.'
+              base='https://api.github.com/repos/'+REPO+'/releases/'+str(rid)
+              release=get(base, github=True)
+              if not isinstance(release,dict) or release.get('id')!=rid or release.get('tag_name')!=initial.get('tag_name') or not release.get('published_at'): raise SafeError('Release identity changed or incomplete; stop.')
+              assets=get(base+'/assets?per_page=100',github=True)
+              if len(assets)>=100: raise SafeError('Too many assets for bounded readiness check; stop.')
+              version=ready(release,assets,manual)
+              if version is None: return 'Skipped: future version or completed Windows ZIP missing.'
+              if manual:
+                  asset=next(a for a in assets if a.get('name')=='Hordicus_v1_2_66_Public_Playtest_Windows_x64.zip')
+                  if asset.get('id')!=629325434 or asset.get('size')!=432167063 or asset.get('digest')!='sha256:c75aa5aab5bb6ce40e28d2d2d1648660c112815c8b0b9cb65da6343872e8ee5a': raise SafeError('Pinned test asset changed; stop.')
+              history=get('https://api.github.com/repos/'+REPO+'/actions/workflows/hordicus-release-discord.yml/runs?per_page=100',github=True)
+              if not isinstance(history,dict) or history.get('total_count',101)>=100 or not isinstance(history.get('workflow_runs'),list): raise SafeError('Cannot establish bounded run history; stop.')
+              current=env.get('GITHUB_RUN_ID','')
+              if not current.isdigit(): raise SafeError('Current run identity missing; stop.')
+              for previous in history['workflow_runs']:
+                  if type(previous.get('id')) is not int: raise SafeError('Invalid run history; stop.')
+                  if previous['id']>=int(current): continue
+                  if (manual and previous.get('event')=='workflow_dispatch') or (previous.get('event')=='release' and previous.get('head_branch')==release['tag_name']):
+                      return 'Skipped: prior attempt exists; inspect General manually, no automatic retry.'
+              webhook=env.get('DISCORD_RELEASE_WEBHOOK','')
+              if not re.fullmatch(r'https://discord\.com/api(?:/v10)?/webhooks/\d+/[A-Za-z0-9_-]+',webhook): raise SafeError('Webhook secret missing or not an official standard Discord webhook URL.')
+              metadata=get(webhook)
+              if not isinstance(metadata,dict) or metadata.get('guild_id')!=GUILD or metadata.get('channel_id')!=GENERAL or metadata.get('type')!=1: raise SafeError('Webhook must be an incoming webhook in the exact Hordicus General channel.')
+              payload={'content':'@everyone A new Hordicus Windows download is ready: '+version+'\nRelease: https://github.com/'+REPO+'/releases/tag/'+release['tag_name']+'\nDownloads channel: https://discord.com/channels/'+GUILD+'/'+DOWNLOADS, 'allowed_mentions':{'parse':['everyone']}}
+              result=get(webhook+'?wait=true',method='POST',body=payload)
+              if not isinstance(result,dict) or result.get('channel_id')!=GENERAL or not result.get('id'): raise SafeError('POST response unverified; inspect General manually. Do not retry.')
+              return 'Announcement sent to General.'
+          
+          def main():
+              try:
+                  with open(os.environ['GITHUB_EVENT_PATH'],encoding='utf-8') as f: event=json.load(f)
+                  print(run(event,os.environ))
+              except SafeError as e: print(str(e)); return 1
+              except Exception: print('Invalid local configuration or metadata; no raw details displayed.'); return 1
+              return 0
+          if __name__=='__main__': sys.exit(main())
+          PY
