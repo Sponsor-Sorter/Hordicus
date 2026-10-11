@@ -108,10 +108,10 @@ jobs:
               if not re.fullmatch(r'https://discord\.com/api(?:/v10)?/webhooks/\d+/[A-Za-z0-9_-]+',webhook): raise SafeError('Webhook secret missing or not an official standard Discord webhook URL.')
               metadata=get(webhook)
               if not isinstance(metadata,dict) or metadata.get('guild_id')!=GUILD or metadata.get('channel_id')!=GENERAL or metadata.get('type')!=1: raise SafeError('Webhook must be an incoming webhook in the exact Hordicus General channel.')
-              payload={'content':'@everyone A new Hordicus Windows download is ready: '+version+'\nRelease: https://github.com/'+REPO+'/releases/tag/'+release['tag_name']+'\nDownloads channel: https://discord.com/channels/'+GUILD+'/'+DOWNLOADS, 'allowed_mentions':{'parse':['everyone']}}
+              payload={'username':'Hordicus Announcer','content':'@everyone A new Hordicus Windows download is ready: '+version+'\nRelease: https://github.com/'+REPO+'/releases/tag/'+release['tag_name']+'\nDownloads channel: https://discord.com/channels/'+GUILD+'/'+DOWNLOADS, 'allowed_mentions':{'parse':['everyone']}}
               result=get(webhook+'?wait=true',method='POST',body=payload)
-              if not isinstance(result,dict) or result.get('channel_id')!=GENERAL or not result.get('id'): raise SafeError('POST response unverified; inspect General manually. Do not retry.')
-              return 'Announcement sent to General.'
+              if not isinstance(result,dict) or result.get('channel_id')!=GENERAL or not isinstance(result.get('id'),str) or not re.fullmatch(r'\d+',result['id']): raise SafeError('POST response unverified; inspect General manually. Do not retry.')
+              return 'Announcement confirmed: '+json.dumps({'message_id':result['id'],'channel_id':GENERAL,'message_url':'https://discord.com/channels/'+GUILD+'/'+GENERAL+'/'+result['id'],'requested_username':'Hordicus Announcer','reported_username':'Hordicus Announcer' if result.get('author',{}).get('username')=='Hordicus Announcer' else 'unverified','mention_everyone':result.get('mention_everyone') is True})
           
           def main():
               try:
