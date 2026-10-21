@@ -1,0 +1,140 @@
+name: Hordicus Online Beta 2.0.24 ordered announcement
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        required: true
+        type: string
+      asset_id:
+        required: true
+        type: string
+      asset_size:
+        required: true
+        type: string
+      sha256:
+        required: true
+        type: string
+      checksum_asset_id:
+        required: true
+        type: string
+      checksum_size:
+        required: true
+        type: string
+      checksum_sha256:
+        required: true
+        type: string
+      confirm_verified_release:
+        description: 'Final ZIP/checksum independently verified and ordered posts approved'
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: hordicus-release-v2.0.24
+  cancel-in-progress: false
+jobs:
+  announce:
+    if: github.repository == 'Sponsor-Sorter/Hordicus' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify release then Downloads readback then General
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_DOWNLOADS_WEBHOOK: ${{ secrets.DISCORD_DOWNLOADS_WEBHOOK }}
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,re,sys,urllib.request,urllib.error
+          REPO='Sponsor-Sorter/Hordicus';GUILD='1552823658060324974';DOWNLOADS='1552836731919798414';GENERAL='1552836762575835177';TAG='v2.0.24'
+          class SafeError(Exception):pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+           def redirect_request(self,*args,**kwargs):return None
+          
+          def request(url,method='GET',body=None,github=False):
+           headers={'Content-Type':'application/json','User-Agent':'DiscordBot (https://github.com/Sponsor-Sorter/Hordicus, 1.0)'}
+           if github:headers.update({'Accept':'application/vnd.github+json','Authorization':'Bearer '+os.environ['GH_TOKEN'],'X-GitHub-Api-Version':'2026-03-10'})
+           try:
+            req=urllib.request.Request(url,data=None if body is None else json.dumps(body).encode(),headers=headers,method=method)
+            with urllib.request.build_opener(NoRedirect).open(req,timeout=20) as r:
+             raw=r.read(1048577)
+             if len(raw)>1048576:raise SafeError('Response too large; stop.')
+             return json.loads(raw)
+           except SafeError:raise
+           except urllib.error.HTTPError as e:raise SafeError(('POST' if method=='POST' else 'GET')+' HTTP '+str(e.code)+'; stop, no retry.') from None
+           except Exception:raise SafeError('POST outcome uncertain; inspect Discord manually, no retry.' if method=='POST' else 'GET/parse failed; stop. No raw details displayed.') from None
+          
+          def run(event,env,get=request):
+           if env.get('GITHUB_EVENT_NAME')!='workflow_dispatch' or env.get('GITHUB_REF')!='refs/heads/main' or env.get('GITHUB_REPOSITORY')!=REPO or env.get('GITHUB_RUN_ATTEMPT')!='1':raise SafeError('Manual main attempt 1 only.')
+           i=event.get('inputs',{})
+           if i.get('confirm_verified_release')!='true':raise SafeError('Final verified release approval required.')
+           for k in ['release_id','asset_id','asset_size','checksum_asset_id','checksum_size']:
+            if not isinstance(i.get(k),str) or not re.fullmatch(r'[1-9]\d*',i[k]):raise SafeError('Verified numeric identifiers/sizes missing.')
+           for k in ['sha256','checksum_sha256']:
+            if not isinstance(i.get(k),str) or not re.fullmatch(r'[0-9a-f]{64}',i[k]):raise SafeError('Verified SHA-256 values missing.')
+           if i['asset_size']!='1787657027' or i['sha256']!='fb94f0c47604684ca63517d065bb051408dc69bb412df9e4b1da140a9abe59cb' or i['checksum_size']!='95' or i['checksum_sha256']!='74fe39a90e7d6c7a9a028da380a56523f357f8fd84b454adc7fcf72036dc17a5':raise SafeError('Inputs differ from final verified v2024 ZIP/checksum bytes.')
+           history=get('https://api.github.com/repos/'+REPO+'/actions/workflows/hordicus-release-v2024.yml/runs?per_page=100',github=True)
+           current=env.get('GITHUB_RUN_ID','')
+           if not current.isdigit() or not isinstance(history,dict) or type(history.get('total_count')) is not int or history['total_count']>=100 or not isinstance(history.get('workflow_runs'),list):raise SafeError('Run history unknown; stop.')
+           for r in history['workflow_runs']:
+            if not isinstance(r,dict) or type(r.get('id')) is not int:raise SafeError('Invalid run history; stop.')
+            if r['id']<int(current):raise SafeError('Prior attempt exists; inspect receipts manually. No automatic recovery.')
+           base='https://api.github.com/repos/'+REPO+'/releases/'+i['release_id']
+           release=get(base,github=True)
+           if not isinstance(release,dict) or release.get('id')!=int(i['release_id']) or release.get('tag_name')!=TAG or release.get('draft') is not False or release.get('prerelease') is not True or not release.get('published_at'):raise SafeError('Exact published v2.0.24 identity not verified.')
+           assets=get(base+'/assets?per_page=100',github=True)
+           if not isinstance(assets,list) or len(assets)>=100:raise SafeError('Asset list incomplete or excessive.')
+           def asset(idkey,sizekey,hashkey,name):
+            matches=[a for a in assets if isinstance(a,dict) and a.get('id')==int(i[idkey])]
+            if len(matches)!=1:raise SafeError('Expected asset missing/ambiguous.')
+            a=matches[0]
+            if a.get('name')!=name or a.get('state')!='uploaded' or type(a.get('size')) is not int or a['size']!=int(i[sizekey]) or a.get('digest')!='sha256:'+i[hashkey]:raise SafeError('Expected asset name/state/size/digest mismatch.')
+            return a
+           zipasset=asset('asset_id','asset_size','sha256','Hordicus-2.0.24-Windows.zip')
+           asset('checksum_asset_id','checksum_size','checksum_sha256','SHA256SUMS.txt')
+           hooks={};meta={}
+           for label,key,channel in [('Downloads','DISCORD_DOWNLOADS_WEBHOOK',DOWNLOADS),('General','DISCORD_RELEASE_WEBHOOK',GENERAL)]:
+            url=env.get(key,'')
+            if not re.fullmatch(r'https://discord\.com/api(?:/v10)?/webhooks/\d+/[A-Za-z0-9_-]+',url):raise SafeError(label+' standard hosted webhook required.')
+            m=get(url)
+            if not isinstance(m,dict) or m.get('guild_id')!=GUILD or m.get('channel_id')!=channel or m.get('type')!=1 or not isinstance(m.get('id'),str) or not m['id'].isdigit():raise SafeError(label+' destination identity mismatch.')
+            hooks[label]=url;meta[label]=m
+           if meta['Downloads']['id']==meta['General']['id']:raise SafeError('Distinct channel webhooks required.')
+           release_url='https://github.com/'+REPO+'/releases/tag/'+TAG
+           download_url='https://github.com/'+REPO+'/releases/download/'+TAG+'/Hordicus-2.0.24-Windows.zip'
+           checksum_url='https://github.com/'+REPO+'/releases/download/'+TAG+'/SHA256SUMS.txt'
+           content='Hordicus Online v2.0.24 - World Atmosphere and Performance Beta | Windows x64\nDownload: {download}\nRelease / known limits: {release}\nChecksums: {checksum}\n\nAnimated ruin water/reflections/splashes, moving fog and lighting, NPC dialogue and louder whispers, plus rendering refinements and isolated online display settings.\n\nHOW TO PLAY WITH FRIENDS (2-4 players)\n1. Extract the ENTIRE ZIP into a NEW writable folder; run Hordicus.exe. Everyone needs v2.0.24. Do not run from the ZIP or overwrite an older install.\n2. Host: Play > Co-op > Host Co-op > Copy Party Code. Share the code privately.\n3. Guests: Play > Co-op > Join Co-op > paste/type code > Join Party.\n4. Everyone chooses a character/weapon; when all are chosen, the host presses Begin. Keep the host running; host migration is unsupported.\n\nNo Steam/Epic launcher or password sign-in; internet required. Enter opens party text chat. Optional voice is OFF by default and experimental. Allow Windows firewall/microphone access if prompted and wanted.\n\nExisting Online Beta progress is retained in separate beta saves; ordinary solo progress stays untouched. Manual side-by-side beta install; stable auto-update channel is unchanged.\n\nExperimental: two-PC internet gameplay, voice and sustained FPS still need playtesting. 240 FPS is NOT established. Current gameplay capture could not be completed; see release notes. Please report issues!\n\nZIP SHA-256: fb94f0c47604684ca63517d065bb051408dc69bb412df9e4b1da140a9abe59cb'.replace('{download}',download_url).replace('{release}',release_url).replace('{checksum}',checksum_url)
+           if len(content)>2000:raise SafeError('Downloads message exceeds Discord limit.')
+           if len(content)>2000:raise SafeError('Downloads message exceeds Discord limit.')
+           payload={'username':'Hordicus Announcer','content':content,'allowed_mentions':{'parse':[]}}
+           def receipt(result,channel,hookid):
+            if not isinstance(result,dict) or result.get('channel_id')!=channel or result.get('webhook_id')!=hookid or not isinstance(result.get('id'),str) or not result['id'].isdigit():raise SafeError('POST/GET receipt identity uncertain; inspect Discord, no retry.')
+            return result['id']
+           d=get(hooks['Downloads']+'?wait=true',method='POST',body=payload)
+           did=receipt(d,DOWNLOADS,meta['Downloads']['id'])
+           # Read back the actual posted message before any General request.
+           readback=get(hooks['Downloads']+'/messages/'+did)
+           if receipt(readback,DOWNLOADS,meta['Downloads']['id'])!=did or readback.get('content')!=content or readback.get('mention_everyone') is not False or readback.get('mentions',[]) or readback.get('mention_roles',[]):raise SafeError('Downloads readback version/links/content/mentions not verified; General blocked.')
+           dlink='https://discord.com/channels/'+GUILD+'/'+DOWNLOADS+'/'+did
+           print('Downloads confirmed: '+json.dumps({'message_id':did,'channel_id':DOWNLOADS,'message_url':dlink,'requested_allowed_mentions':payload['allowed_mentions'],'mention_everyone':readback['mention_everyone'],'user_mention_count':len(readback.get('mentions',[])),'role_mention_count':len(readback.get('mention_roles',[]))}),flush=True)
+           general={'username':'Hordicus Announcer','content':'@everyone **Hordicus Online v2.0.24 - World Atmosphere and Performance Beta is live!**\nThis update brings animated ruin water and splashes, moving fog/lighting, NPC voices and whispers, and rendering refinements to the existing online beta.\n\n**Play with friends (2-4 players):**\n1. Everyone downloads/extracts the full v2.0.24 ZIP into a NEW writable folder and runs Hordicus.exe.\n2. Host: Play > Co-op > Host Co-op > Copy Party Code; share it privately.\n3. Friends: Play > Co-op > Join Co-op, paste/type the code and join.\n4. Everyone selects a character/weapon; the host presses Begin when everyone is chosen. Keep the host running.\n\nNo Steam/Epic launcher or password sign-in; internet is required. Enter opens party text chat. Optional voice is OFF by default. Existing Online Beta progress is retained; solo saves stay separate and untouched.\n\nThis is experimental: two-PC internet play, voice and sustained FPS still need testing. 240 FPS is not established. Please send feedback!\n\n**Download + full instructions:** {downloads}\n**Release notes / testing limits:** {release}'.replace('{downloads}',dlink).replace('{release}',release_url),'allowed_mentions':{'parse':['everyone']}}
+           if len(general['content'])>2000:raise SafeError('General message exceeds Discord limit.')
+           if len(general['content'])>2000:raise SafeError('General message exceeds Discord limit.')
+           g=get(hooks['General']+'?wait=true',method='POST',body=general)
+           gid=receipt(g,GENERAL,meta['General']['id'])
+           if g.get('mention_everyone') is not True:raise SafeError('General receipt mention not confirmed; no retry.')
+           gr=get(hooks['General']+'/messages/'+gid)
+           if receipt(gr,GENERAL,meta['General']['id'])!=gid or gr.get('content')!=general['content'] or gr.get('mention_everyone') is not True or gr.get('mentions',[]) or gr.get('mention_roles',[]):raise SafeError('General readback incomplete; inspect manually, no retry.')
+           return {'general_readback':True,'requested_allowed_mentions':general['allowed_mentions'],'user_mention_count':len(gr.get('mentions',[])),'role_mention_count':len(gr.get('mention_roles',[])),'downloads_message_url':dlink,'general_message_id':gid,'general_message_url':'https://discord.com/channels/'+GUILD+'/'+GENERAL+'/'+gid,'general_channel_id':GENERAL,'mention_everyone':True}
+          
+          def main():
+           try:
+            with open(os.environ['GITHUB_EVENT_PATH'],encoding='utf-8') as f:event=json.load(f)
+            print('Ordered release confirmed: '+json.dumps(run(event,os.environ)));return 0
+           except SafeError as e:print(str(e));return 1
+           except Exception:print('Invalid metadata/configuration; stop, no raw details displayed.');return 1
+          if __name__=='__main__':sys.exit(main())
+          PY
